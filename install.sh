@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Hermes Agent VPS — Bare-metal one-shot installer (Ubuntu 24.04)
+# Hermes Agent VPS — Bare-metal one-shot installer (Ubuntu 24.04 / 26.04)
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/tinovn/vps-hermes-management/main/install.sh | \
@@ -82,9 +82,10 @@ if [[ ! -f /etc/os-release ]]; then
   die "/etc/os-release not found"
 fi
 . /etc/os-release
-if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "24.04" ]]; then
-  die "Unsupported OS: ${PRETTY_NAME:-unknown}. Required: Ubuntu 24.04"
-fi
+case "${ID:-}:${VERSION_ID:-}" in
+  ubuntu:24.04|ubuntu:26.04) ;;
+  *) die "Unsupported OS: ${PRETTY_NAME:-unknown}. Required: Ubuntu 24.04 or 26.04" ;;
+esac
 if [[ "$(id -u)" != "0" ]]; then
   die "Must run as root"
 fi
@@ -285,8 +286,18 @@ uv python install "$PYTHON_PIN"
 # ---- 6b. Install Node.js 22 (required for Hermes web dashboard build) -----
 step "6b. Install Node.js 22"
 if ! command -v node &>/dev/null || [[ "$(node -v 2>/dev/null)" != v22* ]]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-  apt_retry apt-get -qqy install nodejs
+  # Ubuntu 26.04 already ships nodejs 22 and NodeSource has no `resolute`
+  # build (404), so prefer the distro package whenever it is already v22.
+  if apt-cache policy nodejs 2>/dev/null | grep -q "Candidate: 22\."; then
+    apt_retry apt-get -qqy install nodejs
+    # Debian's nodejs package excludes npm, and the `npm` package drags in
+    # ~370 node-* packages (+1.2 GB). corepack ships with node 22 and pulls
+    # npm on demand instead.
+    corepack enable npm || die "corepack enable npm failed"
+  else
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    apt_retry apt-get -qqy install nodejs
+  fi
 fi
 log "Node: $(node -v) / npm: $(npm -v)"
 
