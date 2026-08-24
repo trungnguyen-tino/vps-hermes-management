@@ -9,7 +9,7 @@ dependencies = [
     "fastembed>=0.4,<1.0",
     "numpy>=1.26",
     "pypdf>=4.0",
-    "mcp>=1.9",
+    "mcp>=1.9,<2",
 ]
 
 [project.optional-dependencies]
